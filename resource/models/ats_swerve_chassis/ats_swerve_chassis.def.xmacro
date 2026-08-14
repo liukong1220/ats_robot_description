@@ -1,0 +1,238 @@
+<?xml version="1.0"?>
+<sdf version="1.7">
+    <!--include defination-->
+    <xmacro_include uri="model://rm21_armor_module/rm21_armor_module.def.xmacro" />
+    <xmacro_include uri="model://rm21_light_indicator_module/rm21_light_indicator_module.def.xmacro" />
+    <xmacro_include uri="model://rm21_speed_monitor_module/rm21_speed_monitor_module.def.xmacro" />
+
+    <!--
+      Four-wheel independent drive / four-wheel independent steering module.
+
+      Joint chain: chassis -> <prefix>_steer_joint -> <prefix>_steer_link
+                            -> <prefix>_wheel_joint -> <prefix>_wheel
+
+      Steering axis is +z, wheel rolling axis is +y, matching the MuJoCo
+      reference model src/sim/ats_mujoco_sim/models/swerve_chassis.xml so that
+      both simulators expose the same joint names, axes and rolling radius.
+    -->
+    <xmacro_define_block name="swerve_module" params="prefix parent pose">
+        <joint name="${prefix}_steer_joint" type="revolute">
+            <pose relative_to="${parent}">${pose}</pose>
+            <parent>${parent}</parent>
+            <child>${prefix}_steer_link</child>
+            <axis>
+                <xyz>0 0 1</xyz>
+                <limit>
+                    <lower>-3.14159</lower>
+                    <upper>3.14159</upper>
+                    <effort>60</effort>
+                    <velocity>20</velocity>
+                </limit>
+                <dynamics>
+                    <damping>0.25</damping>
+                </dynamics>
+            </axis>
+        </joint>
+        <link name="${prefix}_steer_link">
+            <pose relative_to="${prefix}_steer_joint">0 0 0 0 0 0</pose>
+            <inertial>
+                <pose>0 0 0.030 0 0 0</pose>
+                <xmacro_block name="inertia_cylinder" m="0.125" r="0.035" l="0.060"/>
+            </inertial>
+            <visual name="${prefix}_steer_post_visual">
+                <pose>0 0 0.030 0 0 0</pose>
+                <xmacro_block name="geometry_cylinder" r="0.035" l="0.060"/>
+            </visual>
+        </link>
+
+        <joint name="${prefix}_wheel_joint" type="revolute">
+            <pose relative_to="${prefix}_steer_link">0 0 0 0 0 0</pose>
+            <parent>${prefix}_steer_link</parent>
+            <child>${prefix}_wheel</child>
+            <axis>
+                <xyz>0 1 0</xyz>
+                <limit>
+                    <lower>-1.79769e+308</lower>
+                    <upper>1.79769e+308</upper>
+                    <effort>1e+10</effort>
+                    <velocity>1e+10</velocity>
+                </limit>
+                <dynamics>
+                    <damping>0.01</damping>
+                </dynamics>
+            </axis>
+        </joint>
+        <link name="${prefix}_wheel">
+            <pose relative_to="${prefix}_wheel_joint">0 0 0 0 0 0</pose>
+            <inertial>
+                <pose>0 0 0 1.5707 0 0</pose>
+                <xmacro_block name="inertia_cylinder" m="0.375" r="0.0425" l="0.050"/>
+            </inertial>
+            <visual name="${prefix}_wheel_visual">
+                <pose>0 0 0 1.5707 0 0</pose>
+                <xmacro_block name="geometry_cylinder" r="0.0425" l="0.050"/>
+            </visual>
+            <collision name="${prefix}_wheel_collision">
+                <pose>0 0 0 1.5707 0 0</pose>
+                <xmacro_block name="geometry_cylinder" r="0.0425" l="0.050"/>
+                <surface>
+                    <friction>
+                        <ode>
+                            <mu>1.0</mu>
+                            <mu2>1.0</mu2>
+                        </ode>
+                    </friction>
+                </surface>
+            </collision>
+        </link>
+    </xmacro_define_block>
+
+    <!--
+      ATS sentry chassis with a four-swerve-module drivetrain.
+
+      The frame contract is identical to rm25_example_robot so the ATS
+      navigation chain keeps working unchanged:
+        base_footprint -> chassis -> gimbal_yaw_odom -> gimbal_pitch_odom
+                                  -> gimbal_yaw -> gimbal_pitch
+      Only the drivetrain differs: four mecanum wheels are replaced by four
+      steer+drive modules.
+
+      Wheel centre height above base_footprint is
+      chassis_height - steer_drop = wheel rolling radius (0.0425 m).
+    -->
+    <xmacro_define_block name="ats_swerve_chassis" params="sticker_type chassis_height gimbal_pitch_height gimbal_yaw_height small_yaw_offset_x small_yaw_offset_y small_yaw_offset_z pitch_offset_x pitch_offset_y pitch_offset_z">
+        <link name="base_footprint"/>
+        <joint name="base_to_chassis" type="fixed">
+            <pose>0 0 ${chassis_height} 0 0 0</pose>
+            <parent>base_footprint</parent>
+            <child>chassis</child>
+        </joint>
+
+        <!--chassis-->
+        <link name="chassis">
+            <inertial>
+                <pose>0 0 0.015 0 0 0</pose>
+                <xmacro_block name="inertia_box" m="23.0" x="0.60" y="0.50" z="0.13"/>
+            </inertial>
+            <visual name="chassis_visual">
+                <pose>0 0 0.015 0 0 0</pose>
+                <xmacro_block name="geometry_box" x="0.60" y="0.50" z="0.10"/>
+            </visual>
+            <collision name="chassis_base_collision">
+                <pose>0 0 0.015 0 0 0</pose>
+                <xmacro_block name="geometry_box" x="0.60" y="0.50" z="0.10"/>
+            </collision>
+            <sensor name="chassis_imu" type="imu">
+                <always_on>1</always_on>
+                <update_rate>200</update_rate>
+            </sensor>
+        </link>
+
+        <!--
+          Module mounting positions in the chassis frame. z is chosen so the
+          wheel centre sits exactly at the rolling radius above ground.
+        -->
+        <xmacro_block name="swerve_module" prefix="front_left" parent="chassis" pose="0.270 0.270 ${0.0425-chassis_height} 0 0 0"/>
+        <xmacro_block name="swerve_module" prefix="front_right" parent="chassis" pose="0.270 -0.270 ${0.0425-chassis_height} 0 0 0"/>
+        <xmacro_block name="swerve_module" prefix="rear_left" parent="chassis" pose="-0.270 0.270 ${0.0425-chassis_height} 0 0 0"/>
+        <xmacro_block name="swerve_module" prefix="rear_right" parent="chassis" pose="-0.270 -0.270 ${0.0425-chassis_height} 0 0 0"/>
+
+        <!--big yaw (navigation/localization reference axis)-->
+        <joint name="gimbal_yaw_odom_joint" type="revolute">
+            <pose relative_to='chassis'>0 0 ${gimbal_yaw_height} 0 0 0</pose>
+            <parent>chassis</parent>
+            <child>gimbal_yaw_odom</child>
+            <axis>
+                <xyz>0 0 1</xyz>
+                <limit>
+                    <effort>100</effort>
+                    <velocity>50</velocity>
+                    <lower>-1.79769e+308</lower>
+                    <upper>1.79769e+308</upper>
+                </limit>
+            </axis>
+        </joint>
+        <link name="gimbal_yaw_odom">
+            <pose relative_to="gimbal_yaw_odom_joint">0 0 0 0 0 0</pose>
+        </link>
+
+        <joint name="gimbal_pitch_odom_joint" type="fixed">
+            <pose relative_to='gimbal_yaw_odom'>${small_yaw_offset_x} ${small_yaw_offset_y} ${small_yaw_offset_z} 0 0 0</pose>
+            <parent>gimbal_yaw_odom</parent>
+            <child>gimbal_pitch_odom</child>
+        </joint>
+        <link name="gimbal_pitch_odom">
+            <pose relative_to="gimbal_pitch_odom_joint">0 0 0 0 0 0</pose>
+        </link>
+
+        <!--small yaw module-->
+        <joint name="gimbal_yaw_joint" type="revolute">
+            <pose relative_to='gimbal_pitch_odom'>0 0 0 0 0 0</pose>
+            <parent>gimbal_pitch_odom</parent>
+            <child>gimbal_yaw</child>
+            <axis>
+                <xyz>0 0 1</xyz>
+                <limit>
+                    <effort>100</effort>
+                    <velocity>50</velocity>
+                    <lower>-1.79769e+308</lower>
+                    <upper>1.79769e+308</upper>
+                </limit>
+            </axis>
+        </joint>
+        <link name="gimbal_yaw">
+            <pose relative_to="gimbal_yaw_joint">0 0 0 0 0 0</pose>
+            <inertial>
+                <pose>0 0 0.02 0 0 0</pose>
+                <xmacro_block name="inertia_cylinder" m="1.0" r="0.05" l="0.08"/>
+            </inertial>
+            <visual name="visual">
+                <pose>0 0 0.02 0 0 0</pose>
+                <xmacro_block name="geometry_cylinder" r="0.05" l="0.08"/>
+            </visual>
+        </link>
+
+        <!--pitch module-->
+        <joint name="gimbal_pitch_joint" type="revolute">
+            <pose relative_to='gimbal_yaw'>${pitch_offset_x} ${pitch_offset_y} ${pitch_offset_z} 0 0 0</pose>
+            <parent>gimbal_yaw</parent>
+            <child>gimbal_pitch</child>
+            <axis>
+                <xyz>0 1 0</xyz>
+                <limit>
+                    <effort>100</effort>
+                    <lower>${-3.14*0.25}</lower>
+                    <upper>${3.14*0.18}</upper>
+                    <velocity>50</velocity>
+                </limit>
+            </axis>
+        </joint>
+        <link name="gimbal_pitch">
+            <pose relative_to="gimbal_pitch_joint">0 0 0 0 0 0</pose>
+            <inertial>
+                <pose>0.02 0 0 0 0 0</pose>
+                <xmacro_block name="inertia_box" m="0.5" x="0.25" y="0.09" z="0.10" />
+            </inertial>
+            <visual name="visual">
+                <pose>0.015 0 0 0 0 0</pose>
+                <xmacro_block name="geometry_box" x="0.1" y="0.0915" z="0.08"/>
+            </visual>
+            <collision name="collision_main">
+                <pose>0.015 0 0 0 0 0</pose>
+                <xmacro_block name="geometry_box" x="0.1" y="0.0915" z="0.08"/>
+            </collision>
+            <sensor name="gimbal_imu" type="imu">
+                <always_on>1</always_on>
+                <update_rate>200</update_rate>
+            </sensor>
+        </link>
+
+        <!--for referee system-->
+        <xmacro_block name="small_armor_with_support" suffix="_0" parent="chassis" sticker_type="${sticker_type}" pose="0.297 0 0.061 0 0 0"/>
+        <xmacro_block name="small_armor_with_support" suffix="_1" parent="chassis" sticker_type="${sticker_type}" pose="0 0.247 0.061 0 0 1.5708"/>
+        <xmacro_block name="small_armor_with_support" suffix="_2" parent="chassis" sticker_type="${sticker_type}" pose="-0.297 0 0.061 0 0 3.14"/>
+        <xmacro_block name="small_armor_with_support" suffix="_3" parent="chassis" sticker_type="${sticker_type}" pose="0 -0.247 0.061 0 0 -1.5708"/>
+        <xmacro_block name="light_indicator" suffix="" parent="chassis" pose="-0.297 0 0.065 0 0 0"/>
+        <xmacro_block name="speed_monitor_17mm" suffix="" parent="gimbal_pitch" pose="0.07 0 0 0 0 0"/>
+    </xmacro_define_block>
+</sdf>

@@ -26,7 +26,9 @@
         <ignition_frame_id>${prefix}mid360</ignition_frame_id>
         <always_on>1</always_on>
         <update_rate>200</update_rate>
-        <visualize>true</visualize>
+        <!-- Navigation's headless profile consumes IMU samples but never opens
+             a sensor visualization. Avoid scheduling a redundant render pass. -->
+        <visualize>false</visualize>
         <imu>
         </imu>
       </sensor>
@@ -35,7 +37,8 @@
         <ignition_frame_id>${prefix}mid360</ignition_frame_id>
         <pose>0 0 0.03 0 0 0</pose>
         <always_on>true</always_on>
-        <visualize>true</visualize>
+        <!-- Keep the GPU ray sensor active; only its GUI visualization is off. -->
+        <visualize>false</visualize>
         <update_rate>${update_rate}</update_rate>
         <ray>
           <scan>
