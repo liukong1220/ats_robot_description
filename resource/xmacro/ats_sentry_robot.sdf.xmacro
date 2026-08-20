@@ -25,6 +25,14 @@
     <xmacro_define_value name="gimbal_yaw_height" value="0.10" />
     <!-- pitch 轴相对 yaw 轴再上移约 3cm，使底盘 10cm + 云台 13cm 的高度关系闭合。 -->
     <xmacro_define_value name="gimbal_pitch_height" value="0.03" />
+    <!-- Gazebo navigation profile: retain the 32-line Mid360 geometry while
+         making its timing and ray density configurable by the launch owner.
+         625 x 32 is the active-navigation default (200 k rays/s), matching
+         the Mid360 point-rate model at 10 Hz. Diagnostic A/B runs may lower
+         the update rate only when the bridge offset window and Point-LIO
+         measurement interval use the same period. -->
+    <xmacro_define_value name="nav_livox_update_rate_hz" value="10.0" />
+    <xmacro_define_value name="nav_livox_horizontal_samples" value="625" />
     <!-- pitch 轴中心相对小 yaw 轴中心的安装偏置：
          x<0 表示在小 yaw 轴后方，y>0 表示在左侧，z>0 表示在上方。 -->
     <xmacro_define_value name="pitch_offset_x" value="-0.053" />
@@ -45,15 +53,10 @@
         <xmacro_block name="ats_swerve_chassis" sticker_type="${global_armor_sticker_type}" chassis_height="${chassis_height}" gimbal_yaw_height="${gimbal_yaw_height}" gimbal_pitch_height="${gimbal_pitch_height}" small_yaw_offset_x="${small_yaw_offset_x}" small_yaw_offset_y="${small_yaw_offset_y}" small_yaw_offset_z="${small_yaw_offset_z}" pitch_offset_x="${pitch_offset_x}" pitch_offset_y="${pitch_offset_y}" pitch_offset_z="${pitch_offset_z}"/>
         <!-- Livox 相对大 yaw 坐标系 `gimbal_yaw_odom` 的安装位姿：
              pose = x y z roll pitch yaw。 -->
-        <!-- 采样量按实物 Livox Mid360 标定：20 万点/秒，即 10Hz × 2 万点。
-             mid360 模型的垂直线数固定为 32，故 samples = 20000/32 = 625。
-             原先的 20Hz × 1875 × 32 = 120 万条射线/秒 是实物的 6 倍，
-             Gazebo 的 Sensors 渲染线程跟不上：实测配置 20Hz 只出 4.2Hz，
-             Point-LIO 的 /odometry 周期被拉到约 1.05s，超过 localization_fusion
-             按墙钟判定的 odom_timeout_s=0.5s，状态机恒判 STATE_LOST，
-             /rog_map_adapter 于是永远 ready=false，规划链一步都走不到。
-             10Hz 也正是 point_lio 参数 lidar_time_inte=0.1 所假设的帧率。 -->
-        <xmacro_block name="livox" prefix="front_" parent="gimbal_yaw_odom" pose="-0.2 -0.0 0.0 0.0 0 -${61*pi/180}" update_rate="10" samples="625"/>
+        <!-- 横向射线数与更新频率由 launch owner 统一控制；它们不改变 32 个
+             垂直 ring、传感器 frame 或时间戳。每帧扫描周期由 Gazebo bridge 与
+             Point-LIO 从同一 nav_livox_update_rate_hz 推导，禁止单独修改。 -->
+        <xmacro_block name="livox" prefix="front_" parent="gimbal_yaw_odom" pose="-0.2 -0.0 0.0 0.0 0 -${61*pi/180}" update_rate="${nav_livox_update_rate_hz}" samples="${nav_livox_horizontal_samples}"/>
         <!-- 工业相机相对 pitch 坐标系 `gimbal_pitch` 的安装位姿：
              pose = x y z roll pitch yaw。 -->
         <xmacro_block name="industrial_camera" prefix="front_" parent="gimbal_pitch" pose="0.1 0 0.045 0 0 0" update_rate="30" horizontal_fov="1" width="1920" height="1080"/>
