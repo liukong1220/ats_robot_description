@@ -112,15 +112,15 @@
         <link name="chassis">
             <inertial>
                 <pose>0 0 0.015 0 0 0</pose>
-                <xmacro_block name="inertia_box" m="23.0" x="0.60" y="0.50" z="0.13"/>
+                <xmacro_block name="inertia_box" m="23.0" x="0.58" y="0.58" z="0.13"/>
             </inertial>
             <visual name="chassis_visual">
                 <pose>0 0 0.015 0 0 0</pose>
-                <xmacro_block name="geometry_box" x="0.60" y="0.50" z="0.10"/>
+                <xmacro_block name="geometry_box" x="0.58" y="0.58" z="0.10"/>
             </visual>
             <collision name="chassis_base_collision">
                 <pose>0 0 0.015 0 0 0</pose>
-                <xmacro_block name="geometry_box" x="0.60" y="0.50" z="0.10"/>
+                <xmacro_block name="geometry_box" x="0.58" y="0.58" z="0.10"/>
             </collision>
             <sensor name="chassis_imu" type="imu">
                 <always_on>1</always_on>
